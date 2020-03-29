@@ -57,7 +57,7 @@ GlobalKey ConstObj::get_object_id() const
     return m_table->get_object_id(m_key);
 }
 
-const ClusterTree* ConstObj::get_tree_top() const
+const TableClusterTree* ConstObj::get_tree_top() const
 {
     if (m_key.is_unresolved()) {
         return m_table.unchecked_ptr()->m_tombstones.get();
@@ -883,7 +883,7 @@ bool Obj::ensure_writeable()
 {
     Allocator& alloc = get_alloc();
     if (alloc.is_read_only(m_mem.get_ref())) {
-        m_mem = const_cast<ClusterTree*>(get_tree_top())->ensure_writeable(m_key);
+        m_mem = const_cast<TableClusterTree*>(get_tree_top())->ensure_writeable(m_key);
         m_storage_version = alloc.get_storage_version();
         return true;
     }
