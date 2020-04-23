@@ -40,7 +40,6 @@ Dictionary::Dictionary(const ConstObj& obj, ColKey col_key)
     : m_obj(obj)
     , m_col_key(col_key)
 {
-    m_clusters = new DictionaryClusterTree(this, col_key.get_type(), m_obj.get_alloc(), m_obj.get_row_ndx());
     init_from_parent();
 }
 
@@ -54,19 +53,7 @@ Dictionary& Dictionary::operator=(const Dictionary& other)
     if (this != &other) {
         m_obj = other.m_obj;
         m_col_key = other.m_col_key;
-
-        if (other.m_clusters) {
-            if (!m_clusters)
-                m_clusters =
-                    new DictionaryClusterTree(this, m_col_key.get_type(), m_obj.get_alloc(), m_obj.get_row_ndx());
-            init_from_parent();
-            m_valid = true;
-        }
-        else {
-            delete m_clusters;
-            m_clusters = nullptr;
-            m_valid = false;
-        }
+        init_from_parent();
     }
     return *this;
 }
@@ -84,7 +71,7 @@ size_t Dictionary::size() const
 Mixed Dictionary::get(Mixed key) const
 {
     update_if_needed();
-    if (m_valid) {
+    if (m_clusters) {
         auto hash = key.hash();
         ObjKey k(int64_t(hash & 0x7FFFFFFFFFFFFFFF));
         auto s = m_clusters->get(k);
@@ -110,10 +97,10 @@ Dictionary::Iterator Dictionary::end() const
 
 void Dictionary::create()
 {
-    if (!m_valid && m_obj.is_valid()) {
+    if (!m_clusters && m_obj.is_valid()) {
+        m_clusters = new DictionaryClusterTree(this, m_col_key.get_type(), m_obj.get_alloc(), m_obj.get_row_ndx());
         auto ref = m_clusters->create();
         m_obj.set_int(m_col_key, from_ref(ref));
-        m_valid = true;
     }
 }
 
@@ -167,11 +154,14 @@ void Dictionary::init_from_parent() const
 {
     auto ref = to_ref(m_obj._get<int64_t>(m_col_key.get_index()));
     if (ref) {
+        if (!m_clusters)
+            m_clusters = new DictionaryClusterTree(const_cast<Dictionary*>(this), m_col_key.get_type(),
+                                                   m_obj.get_alloc(), m_obj.get_row_ndx());
+
         m_clusters->init_from_ref(ref);
-        m_valid = true;
     }
     else {
-        m_valid = false;
+        delete m_clusters;
     }
     update_content_version();
 }

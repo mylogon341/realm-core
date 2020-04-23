@@ -67,10 +67,9 @@ public:
 
 private:
     friend class MixedRef;
-    DictionaryClusterTree* m_clusters = nullptr;
+    mutable DictionaryClusterTree* m_clusters = nullptr;
     Obj m_obj;
     ColKey m_col_key;
-    mutable bool m_valid = false;
     mutable uint_fast64_t m_content_version = 0;
 
     void update_content_version() const
