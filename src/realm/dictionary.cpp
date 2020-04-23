@@ -43,11 +43,6 @@ Dictionary::Dictionary(const ConstObj& obj, ColKey col_key)
     init_from_parent();
 }
 
-Dictionary::~Dictionary()
-{
-    delete m_clusters;
-}
-
 Dictionary& Dictionary::operator=(const Dictionary& other)
 {
     if (this != &other) {
@@ -98,7 +93,8 @@ Dictionary::Iterator Dictionary::end() const
 void Dictionary::create()
 {
     if (!m_clusters && m_obj.is_valid()) {
-        m_clusters = new DictionaryClusterTree(this, m_col_key.get_type(), m_obj.get_alloc(), m_obj.get_row_ndx());
+        m_clusters = std::make_unique<DictionaryClusterTree>(this, m_col_key.get_type(), m_obj.get_alloc(),
+                                                             m_obj.get_row_ndx());
         auto ref = m_clusters->create();
         m_obj.set_int(m_col_key, from_ref(ref));
     }
@@ -155,13 +151,13 @@ void Dictionary::init_from_parent() const
     auto ref = to_ref(m_obj._get<int64_t>(m_col_key.get_index()));
     if (ref) {
         if (!m_clusters)
-            m_clusters = new DictionaryClusterTree(const_cast<Dictionary*>(this), m_col_key.get_type(),
-                                                   m_obj.get_alloc(), m_obj.get_row_ndx());
+            m_clusters = std::make_unique<DictionaryClusterTree>(const_cast<Dictionary*>(this), m_col_key.get_type(),
+                                                                 m_obj.get_alloc(), m_obj.get_row_ndx());
 
         m_clusters->init_from_ref(ref);
     }
     else {
-        delete m_clusters;
+        m_clusters = nullptr;
     }
     update_content_version();
 }

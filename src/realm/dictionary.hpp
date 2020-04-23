@@ -34,7 +34,7 @@ public:
     class MixedRef;
 
     Dictionary() {}
-    ~Dictionary();
+    ~Dictionary() {}
 
     Dictionary(const ConstObj& obj, ColKey col_key);
     Dictionary(const Dictionary& other)
@@ -67,7 +67,7 @@ public:
 
 private:
     friend class MixedRef;
-    mutable DictionaryClusterTree* m_clusters = nullptr;
+    mutable std::unique_ptr<DictionaryClusterTree> m_clusters;
     Obj m_obj;
     ColKey m_col_key;
     mutable uint_fast64_t m_content_version = 0;
