@@ -662,28 +662,6 @@ def doLinuxCrossCompile(String target, String buildType, Map testOptions = null)
             }
         }
         if (testOptions != null) {
-            def runTests = { emulated ->
-                unstash "realm-tests-Linux-${target}"
-                def runner = emulated ? testOptions.emulator : ''
-                try {
-                    def environment = environment()
-                    environment << 'UNITTEST_PROGRESS=1'
-                    environment << 'UNITTEST_FILTER=- Thread_RobustMutex*'  // robust mutexes can't work under qemu
-                    withEnv(environment) {
-                        sh """
-                            cd test
-                            ulimit -s 256 # launching thousands of threads in 32-bit address space requires smaller stacks
-                            ${runner} realm-tests
-                        """
-                    }
-                } finally {
-                    dir('..') {
-                        def suffix = emulated ? '-emulated' : ''
-                        recordTests("Linux-${target}-${buildType}${suffix}")
-                    }
-                }
-            }
-
             node(testOptions.nativeNode) {
                 def imageName = "realm-core-native:${target}-${testOptions.nativeDockerPlatform}"
                 docker.build(imageName, "-F ${testOptions.nativeDocker}", "--platform ${testOptions.nativeDockerPlatform}").inside {
