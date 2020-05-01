@@ -102,27 +102,27 @@ jobWrapper {
     ]
     stage('Checking') {
         parallelExecutors = [
-            checkLinuxDebug         : doCheckInDocker('Debug'),
-            checkLinuxRelease       : doCheckInDocker('Release'),
-            checkLinuxDebugNoEncryp : doCheckInDocker('Debug', '4', 'OFF'),
-            checkMacOsRelease       : doBuildMacOs('Release', true),
-            checkWin32Release       : doBuildWindows('Release', false, 'Win32', true),
-            checkWin32DebugUWP      : doBuildWindows('Debug', true, 'Win32', true),
-            iosDebug                : doBuildAppleDevice('ios', 'MinSizeDebug'),
-            androidArm64Debug       : doAndroidBuildInDocker('arm64-v8a', 'Debug', false),
+            //checkLinuxDebug         : doCheckInDocker('Debug'),
+            //checkLinuxRelease       : doCheckInDocker('Release'),
+            //checkLinuxDebugNoEncryp : doCheckInDocker('Debug', '4', 'OFF'),
+            //checkMacOsRelease       : doBuildMacOs('Release', true),
+            //checkWin32Release       : doBuildWindows('Release', false, 'Win32', true),
+            //checkWin32DebugUWP      : doBuildWindows('Debug', true, 'Win32', true),
+            //iosDebug                : doBuildAppleDevice('ios', 'MinSizeDebug'),
+            //androidArm64Debug       : doAndroidBuildInDocker('arm64-v8a', 'Debug', false),
             checkRaspberryPi        : doLinuxCrossCompile('armhf', 'Debug', armhfTestOptions),
-            threadSanitizer         : doCheckSanity('Debug', '1000', 'thread'),
-            addressSanitizer        : doCheckSanity('Debug', '1000', 'address'),
+            //threadSanitizer         : doCheckSanity('Debug', '1000', 'thread'),
+            //addressSanitizer        : doCheckSanity('Debug', '1000', 'address'),
         ]
         if (releaseTesting) {
             extendedChecks = [
-                checkLinuxRelease       : doCheckInDocker('Release'),
-                checkRaspberryPiRelease : doLinuxCrossCompile('armhf', 'Release', armhfTestOptions),
-                checkMacOsDebug         : doBuildMacOs('Debug', true),
-                buildUwpx64Debug        : doBuildWindows('Debug', true, 'x64', false),
-                androidArmeabiRelease   : doAndroidBuildInDocker('armeabi-v7a', 'Release', true),
-                coverage                : doBuildCoverage(),
-                performance             : buildPerformance(),
+                //checkLinuxRelease       : doCheckInDocker('Release'),
+                //checkRaspberryPiRelease : doLinuxCrossCompile('armhf', 'Release', armhfTestOptions),
+                //checkMacOsDebug         : doBuildMacOs('Debug', true),
+                //buildUwpx64Debug        : doBuildWindows('Debug', true, 'x64', false),
+                //androidArmeabiRelease   : doAndroidBuildInDocker('armeabi-v7a', 'Release', true),
+                //coverage                : doBuildCoverage(),
+                //performance             : buildPerformance(),
                 // valgrind                : doCheckValgrind()
             ]
             parallelExecutors.putAll(extendedChecks)
@@ -660,49 +660,61 @@ def doLinuxCrossCompile(String target, String buildType, Map testOptions = null)
                     }
                 }
             }
-            if (testOptions != null) {
-                def runTests = { emulated ->
-                    unstash "realm-tests-Linux-${target}"
-                    def runner = emulated ? testOptions.emulator : ''
-                    try {
-                        def environment = environment()
-                        environment << 'UNITTEST_PROGRESS=1'
-                        environment << 'UNITTEST_FILTER=- Thread_RobustMutex*'  // robust mutexes can't work under qemu
-                        withEnv(environment) {
-                            sh """
-                                cd test
-                                ulimit -s 256 # launching thousands of threads in 32-bit address space requires smaller stacks
-                                ${runner} realm-tests
-                            """
-                        }
-                    } finally {
-                        dir('..') {
-                            def suffix = emulated ? '-emulated' : ''
-                            recordTests("Linux-${target}-${buildType}${suffix}")
-                        }
+        }
+        if (testOptions != null) {
+            def runTests = { emulated ->
+                unstash "realm-tests-Linux-${target}"
+                def runner = emulated ? testOptions.emulator : ''
+                try {
+                    def environment = environment()
+                    environment << 'UNITTEST_PROGRESS=1'
+                    environment << 'UNITTEST_FILTER=- Thread_RobustMutex*'  // robust mutexes can't work under qemu
+                    withEnv(environment) {
+                        sh """
+                            cd test
+                            ulimit -s 256 # launching thousands of threads in 32-bit address space requires smaller stacks
+                            ${runner} realm-tests
+                        """
+                    }
+                } finally {
+                    dir('..') {
+                        def suffix = emulated ? '-emulated' : ''
+                        recordTests("Linux-${target}-${buildType}${suffix}")
                     }
                 }
-
-
-                def parallelPrefix = "checkLinux-${target}-${buildType}"
-                def parallelTasks = [:]
-                parallelTasks["${parallelPrefix}-emulated".toString()] = {
-                    docker("realm-core-crosscompiling:${target}") {
-                        runTests(true)
-                    }
-                }
-                parallelTasks["${parallelPrefix}-native".toString()] = {
-                    // Docker isn't smart enough to use different image namespaces per platform
-                    def imageName = "realm-core-native:${target}-${testOptions.nativeDockerPlatform}"
-                    node(testOptions.nativeNode) {
-                        docker.build(imageName, "-F ${testOptions.nativeDocker}", "--platform ${testOptions.nativeDockerPlatform}").inside {
-                            runTests(false)
-                        }
-                    }
-                }
-                parallel parallelTasks
             }
 
+            node(testOptions.nativeNode) {
+                def imageName = "realm-core-native:${target}-${testOptions.nativeDockerPlatform}"
+                docker.build(imageName, "-F ${testOptions.nativeDocker}", "--platform ${testOptions.nativeDockerPlatform}").inside {
+                    runTests(false)
+                }
+            }
+
+            node("docker") {
+                docker.build("realm-core-crosscompiling:${target}", "-f ${target}.Dockerfile .").inside {
+                    runTests(true)
+                }
+            }
+
+
+            // def parallelPrefix = "checkLinux-${target}-${buildType}"
+            // def parallelTasks = [:]
+            // parallelTasks["${parallelPrefix}-emulated".toString()] = {
+            //     docker("realm-core-crosscompiling:${target}") {
+            //         runTests(true)
+            //     }
+            // }
+            // parallelTasks["${parallelPrefix}-native".toString()] = {
+            //     // Docker isn't smart enough to use different image namespaces per platform
+            //     def imageName = "realm-core-native:${target}-${testOptions.nativeDockerPlatform}"
+            //     node(testOptions.nativeNode) {
+            //         docker.build(imageName, "-F ${testOptions.nativeDocker}", "--platform ${testOptions.nativeDockerPlatform}").inside {
+            //             runTests(false)
+            //         }
+            //     }
+            // }
+            // parallel parallelTasks
         }
     }
 }
